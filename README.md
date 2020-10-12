@@ -7,7 +7,7 @@ This file is used to write equation in the report.
 4-1DownloadData.py
 This file is used to download all data from investing.com via python library.
 
-4-2NormalizeData.R
+4-2NormalizeData.R and 4-2Normalize.xlsx
 This is a part of code to standardize data into range [0,1].
 
 4-3FeatureSelection.R
