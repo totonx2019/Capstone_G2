@@ -5,9 +5,11 @@ library(quantstrat)
 library(tibbletime)
 library(dplyr)
 library(neuralnet)
-asset_index <- "06"
-wd <- "D:/trading/CAPSTONE/"
-data_path <- paste0(paste0("D:/trading/CAPSTONE/toto_data/dataset",asset_index),"/")
+asset_index <- "00"
+#wd <- "D:/trading/CAPSTONE/"
+wd <- "D:/toto_data/"
+#data_path <- paste0(paste0("D:/trading/CAPSTONE/toto_data/dataset",asset_index),"/")
+data_path <- paste0(paste0("D:/toto_data/dataset",asset_index),"/")
 source(paste0(wd,"CAPSTONE_LIBRARY.R"))
 
 # 2. Defining Data and Features
@@ -17,7 +19,8 @@ file_name <- paste0(data_path,txt_file)
 data <- read.csv(file=file_name)
 data <- as.xts(data[,c(2,3,4,5)],order.by = as.Date(data[,1],format = "%Y-%m-%d"))
 result_path <- paste0(data_path,"RESULT/WFO/")
-dir.create(result_path)
+#dir.create(result_path)
+dir.create(result_path, showWarnings = FALSE)
 asset_name <- paste0("asset",asset_index)
 
 # B. LOAD FEATURES DATA
@@ -43,6 +46,7 @@ colnames(ma_20_target) <- "MA20"
 ma_40_target   <- normalize(na.omit(as.xts(sma(data$Close,20),order.by = index(data$Close))))
 colnames(ma_40_target) <- "MA40"
 
+
 ### COMBINING THE FEATURES WITH TARGET DATA FOR EASY SPLITTING
 df_low <- cbind(combine_low,low_target)
 df_low <- na.omit(df_low)
@@ -59,27 +63,33 @@ df_ma_40   <- na.omit(df_ma_40)
 
 ### with self lag signal
 ### COMBINING THE FEATURES WITH TARGET DATA FOR EASY SPLITTING
-lag_target_low <- lag(low_target,1)
+#low_target
+lag_target_low <- stats::lag(low_target,1)
 colnames(lag_target_low) <- 'lag_target_low'
 df_low <- cbind(combine_low,lag_target_low,low_target)
 df_low <- na.omit(df_low)
-lag_target_high <- lag(high_target,1)
+
+lag_target_high <- stats::lag(high_target,1)
 colnames(lag_target_high) <- 'lag_target_high'
 df_high <- cbind(combine_high,lag_target_high,high_target)
 df_high <- na.omit(df_high)
-lag_target_open <- lag(open_target,1)
+
+lag_target_open <- stats::lag(open_target,1)
 colnames(lag_target_open) <- 'lag_target_open'
 df_open <- cbind(combine_open,lag_target_open,open_target)
 df_open <- na.omit(df_open)
-lag_target_close <- lag(close_target,1)
+
+lag_target_close <- stats::lag(close_target,1)
 colnames(lag_target_close) <- 'lag_target_close'
 df_close <- cbind(combine_close,lag_target_close,close_target)
 df_close <- na.omit(df_close)
-lag_target_ma_20 <- lag(ma_20_target,1)
+
+lag_target_ma_20 <- stats::lag(ma_20_target,1)
 colnames(lag_target_ma_20) <- 'lag_target_ma_20'
 df_ma_20   <- cbind(combine_ma_20,lag_target_ma_20,ma_20_target)
 df_ma_20   <- na.omit(df_ma_20)
-lag_target_ma_40 <- lag(ma_40_target,1)
+
+lag_target_ma_40 <- stats::lag(ma_40_target,1)
 colnames(lag_target_ma_40) <- 'lag_target_ma_40'
 df_ma_40   <- cbind(combine_ma_40,lag_target_ma_40,ma_40_target)
 df_ma_40   <- na.omit(df_ma_40)
@@ -116,7 +126,7 @@ walk_forward_signal <- function(formula,df,chunk_number,oos_percent,ori_data)
     # 2. Use the network to generate output 
     process_data_out_features <- process_data_out[,c(1:(ncol(process_data_out)-1))]
     nn_output <- compute(nn, process_data_out_features)
-    #nn_output <- lag(nn_output,1)
+    #nn_output <- stats::lag(nn_output,1)
     nn_result <- as.xts(nn_output$net.result,order.by = as.Date(row.names(nn_output$net.result)))
     # 3. Denormalize the Data
     actual_denorm    <- denormalize(process_data_out[,ncol(process_data_out)],ori_data)
@@ -146,36 +156,36 @@ ma_40_table <- walk_forward_signal(ma_40_f,df_ma_40,3,0.3,na.omit(as.xts(sma(dat
 ma_signal <- cbind(ma_20_table$Predict,ma_40_table$Predict)
 colnames(ma_signal) <- c("MA20","MA40")
 ma_signal <- na.omit(ma_signal)
-ma_signal$MA20_lag <- lag(ma_signal$MA20,1)
-ma_signal$MA40_lag <- lag(ma_signal$MA40,1)
+ma_signal$MA20_lag <- stats::lag(ma_signal$MA20,1)
+ma_signal$MA40_lag <- stats::lag(ma_signal$MA40,1)
 ma_signal$sign <- ifelse(ma_signal$MA20>ma_signal$MA40 & ma_signal$MA20_lag<ma_signal$MA40_lag,1,ifelse(ma_signal$MA20<ma_signal$MA40 & ma_signal$MA20_lag>ma_signal$MA40_lag,-1,NA))
 ma_signal$sign <- na.locf(ma_signal$sign)
 
-#ret <- (data$Close - lag(data$Close,1)) * 0.01
+#ret <- (data$Close - stats::lag(data$Close,1)) * 0.01
 ret <- Return.calculate(data$Close)
 ret <- ma_signal$sign*ret
 ret <- na.omit(ret)
 charts.PerformanceSummary(ret,geometric = TRUE)
-dev.copy(png,paste0(result_path,"WFO_MA_CROSSOVER.png"))
+dev.copy(png,paste0(result_path,txt_file,"WFO_MA_CROSSOVER.png"))
 dev.off()
 print(table.AnnualizedReturns(ret,Rf=0.000158,geometric = TRUE))
 wfo_ma_cross <- table.AnnualizedReturns(ret,Rf=0.000158,geometric = TRUE)
 
 ### B. CLOSE PREDICT VS CLOSE ACTUAL
-#close_table$Actual <- lag(close_table$Actual,1)
+#close_table$Actual <- stats::lag(close_table$Actual,1)
 close_table <- walk_forward_signal(close_f,df_close,3,0.3,data$Close)
-close_table$Predict_Lag <- lag(close_table$Predict,1)
+close_table$Predict_Lag <- stats::lag(close_table$Predict,1)
 close_table$Sig <- ifelse(close_table$Predict>close_table$Actual & close_table$Predict> close_table$Predict_Lag,1,ifelse(close_table$Predict<close_table$Actual & close_table$Predict< close_table$Predict_Lag,-1,NA))
 #close_table$Sig <- ifelse(close_table$Predict>close_table$Actual,1,ifelse(close_table$Predict<close_table$Actual,-1,NA))
 #close_table$Sig <- na.locf(close_table$Sig)
 
-#ret <- (data$Close - lag(data$Close,1)) * 0.01
+#ret <- (data$Close - stats::lag(data$Close,1)) * 0.01
 #ret <- close_table$Sig*ret
 ret <- Return.calculate(data$Close)
-ret <- lag(close_table$Sig,1)*ret
+ret <- stats::lag(close_table$Sig,1)*ret
 ret <- na.omit(ret)
 charts.PerformanceSummary(ret,geometric = TRUE)
-dev.copy(png,paste0(result_path,"WFO_CLOSE_SIMPLE.png"))
+dev.copy(png,paste0(result_path,txt_file,"WFO_CLOSE_SIMPLE.png"))
 dev.off()
 print(table.AnnualizedReturns(ret,Rf=0.000158,geometric = TRUE))
 wfo_close_simple <- table.AnnualizedReturns(ret,Rf=0.000158,geometric = TRUE)
@@ -185,30 +195,30 @@ wfo_close_simple <- table.AnnualizedReturns(ret,Rf=0.000158,geometric = TRUE)
 combine_sign <- cbind(close_table$Sig,ma_signal$sign)
 combine_sign$fin_sig <- ifelse(combine_sign$Sig==1 & combine_sign$sign==1,1,ifelse(combine_sign$Sig==-1 & combine_sign$sign==-1,-1,NA))
 ret <- Return.calculate(data$Close)
-ret <- lag(combine_sign$fin_sig,1)*ret
+ret <- stats::lag(combine_sign$fin_sig,1)*ret
 ret <- na.omit(ret)
 charts.PerformanceSummary(ret,geometric = TRUE)
-dev.copy(png,paste0(result_path,"WFO_COMBINE.png"))
+dev.copy(png,paste0(result_path,txt_file,"WFO_COMBINE.png"))
 dev.off()
 print(table.AnnualizedReturns(ret,Rf=0.000158,geometric = TRUE))
 wfo_combine <- table.AnnualizedReturns(ret,Rf=0.000158,geometric = TRUE)
 
 
 #### COMBINE OHLC SIGNAL
-open_table$Actual <- lag(open_table$Actual,1)
-open_table$Predict_Lag <- lag(open_table$Predict,1)
+open_table$Actual <- stats::lag(open_table$Actual,1)
+open_table$Predict_Lag <- stats::lag(open_table$Predict,1)
 open_table$Sig <- ifelse(open_table$Predict>open_table$Actual & open_table$Predict> open_table$Predict_Lag,1,ifelse(open_table$Predict<open_table$Actual & open_table$Predict< open_table$Predict_Lag,-1,NA))
 
-high_table$Actual <- lag(high_table$Actual,1)
-high_table$Predict_Lag <- lag(high_table$Predict,1)
+high_table$Actual <- stats::lag(high_table$Actual,1)
+high_table$Predict_Lag <- stats::lag(high_table$Predict,1)
 high_table$Sig <- ifelse(high_table$Predict>high_table$Actual & high_table$Predict> high_table$Predict_Lag,1,ifelse(high_table$Predict<high_table$Actual & high_table$Predict< high_table$Predict_Lag,-1,NA))
 
-low_table$Actual <- lag(low_table$Actual,1)
-low_table$Predict_Lag <- lag(low_table$Predict,1)
+low_table$Actual <- stats::lag(low_table$Actual,1)
+low_table$Predict_Lag <- stats::lag(low_table$Predict,1)
 low_table$Sig <- ifelse(low_table$Predict>low_table$Actual & low_table$Predict> low_table$Predict_Lag,1,ifelse(low_table$Predict<low_table$Actual & low_table$Predict< low_table$Predict_Lag,-1,NA))
 
-close_table$Actual <- lag(close_table$Actual,1)
-close_table$Predict_Lag <- lag(close_table$Predict,1)
+close_table$Actual <- stats::lag(close_table$Actual,1)
+close_table$Predict_Lag <- stats::lag(close_table$Predict,1)
 close_table$Sig <- ifelse(close_table$Predict>close_table$Actual & close_table$Predict> close_table$Predict_Lag,1,ifelse(close_table$Predict<close_table$Actual & close_table$Predict< close_table$Predict_Lag,-1,NA))
 
 combine_ohlc <- cbind(open_table$Sig,high_table$Sig,low_table$Sig,close_table$Sig)
@@ -218,10 +228,10 @@ combine_ohlc$Sig <- ifelse(combine_ohlc$Open==1 & combine_ohlc$High==1 & combine
                            )
 #combine_ohlc$Sig <- na.locf(combine_ohlc$Sig)
 ret <- Return.calculate(data$Close)
-ret <- lag(combine_ohlc$Sig,1)*ret
+ret <- stats::lag(combine_ohlc$Sig,1)*ret
 ret <- na.omit(ret)
 charts.PerformanceSummary(ret,geometric = TRUE)
-dev.copy(png,paste0(result_path,"WFO_OHLC.png"))
+dev.copy(png,paste0(result_path,txt_file,"WFO_OHLC.png"))
 dev.off()
 print(table.AnnualizedReturns(ret,Rf=0.000158,geometric = TRUE))
 wfo_ohlc <- table.AnnualizedReturns(ret,Rf=0.000158,geometric = TRUE)
@@ -229,16 +239,16 @@ wfo_ohlc <- table.AnnualizedReturns(ret,Rf=0.000158,geometric = TRUE)
 
 
 ##### MA20 REAL VS PREDICT
-ma_20_table$Predict_Lag <- lag(ma_20_table$Predict,1)
-ma_20_table$Actual_Lag <- lag(ma_20_table$Actual,1)
+ma_20_table$Predict_Lag <- stats::lag(ma_20_table$Predict,1)
+ma_20_table$Actual_Lag <- stats::lag(ma_20_table$Actual,1)
 ma_20_table$Sig <- ifelse(ma_20_table$Predict>ma_20_table$Actual & ma_20_table$Predict_Lag< ma_20_table$Actual_Lag,1,ifelse(ma_20_table$Predict<ma_20_table$Actual & ma_20_table$Predict_Lag> ma_20_table$Actual_Lag,-1,NA))
 
 ret <- Return.calculate(data$Close)
 #ret <- close_table$Sig*ret
-ret <- lag(ma_20_table$Sig,1)*ret
+ret <- stats::lag(ma_20_table$Sig,1)*ret
 ret <- na.omit(ret)
 charts.PerformanceSummary(ret,geometric = TRUE)
-dev.copy(png,paste0(result_path,"WFO_MA20.png"))
+dev.copy(png,paste0(result_path,txt_file,"WFO_MA20.png"))
 dev.off()
 print(table.AnnualizedReturns(ret,Rf=0.000158,geometric = TRUE))
 wfo_ma_20 <- table.AnnualizedReturns(ret,Rf=0.000158,geometric = TRUE)
@@ -249,4 +259,6 @@ wfo_ma_20 <- table.AnnualizedReturns(ret,Rf=0.000158,geometric = TRUE)
 result_table <- cbind(wfo_ma_cross,wfo_close_simple,wfo_combine,wfo_ohlc,wfo_ma_20)
 colnames(result_table) <- c("WFO MA CROSSOVER","WFO CLOSE SIMPLE","WFO COMBINE","WFO OHLC","WFO MA 20 PRED")
 rownames(result_table) <- c("Annualized Return","Annualized Std Dev","Annualized Sharpe (Rf=0.82%)")
-write.csv(result_table,paste0(result_path,"AR.csv"),col.names = TRUE,row.names = TRUE)
+#result_table
+#write.csv(result_table,paste0(result_path,"AR.csv"),col.names = TRUE,row.names = TRUE)
+write.csv(result_table,paste0(result_path,txt_file,".csv"),col.names = TRUE,row.names = TRUE)
